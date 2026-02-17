@@ -14,8 +14,10 @@ type Transport struct {
 }
 
 func (t *Transport) setDefaults(role string) {
+	// Multiple KCP connections distribute load across streams.
+	// For 200+ users, 5 connections prevent single-conn bottleneck.
 	if t.Conn == 0 {
-		t.Conn = 1
+		t.Conn = 5
 	}
 
 	// TCP copy buffer: 32KB provides good throughput for relay workloads.

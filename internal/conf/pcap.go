@@ -11,9 +11,9 @@ type PCAP struct {
 
 func (p *PCAP) setDefaults(role string) {
 	if p.Sockbuf == 0 {
-		// 4MB is sufficient for most workloads.
-		// Under high user count, large buffers per-handle waste RAM.
-		p.Sockbuf = 4 * 1024 * 1024
+		// 8MB for high user count (200+). Prevents packet drops under burst.
+		// PCAP ring buffer is shared, so larger is better for throughput.
+		p.Sockbuf = 8 * 1024 * 1024
 	}
 }
 

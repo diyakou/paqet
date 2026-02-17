@@ -40,19 +40,19 @@ func (k *KCP) setDefaults(role string) {
 	}
 
 	// Larger windows for better throughput with many concurrent users.
-	// Server needs larger windows because it serves multiple clients.
+	// 200+ users need much larger windows to avoid KCP write-stalls.
 	if k.Rcvwnd == 0 {
 		if role == "server" {
-			k.Rcvwnd = 2048
+			k.Rcvwnd = 4096
 		} else {
-			k.Rcvwnd = 1024
+			k.Rcvwnd = 2048
 		}
 	}
 	if k.Sndwnd == 0 {
 		if role == "server" {
-			k.Sndwnd = 2048
+			k.Sndwnd = 4096
 		} else {
-			k.Sndwnd = 1024
+			k.Sndwnd = 2048
 		}
 	}
 
@@ -67,13 +67,14 @@ func (k *KCP) setDefaults(role string) {
 		k.Block_ = "aes"
 	}
 
-	// Reduced per-connection buffers to save RAM under high user count.
-	// 4MB smuxbuf * 100 users = 400MB RAM. 2MB * 100 = 200MB.
+	// smux buffers: balance between per-connection RAM and throughput.
+	// 4MB smuxbuf allows 200 streams to buffer well without starving.
+	// streambuf 2MB per-stream handles bursts from video/download traffic.
 	if k.Smuxbuf == 0 {
-		k.Smuxbuf = 2 * 1024 * 1024
+		k.Smuxbuf = 4 * 1024 * 1024
 	}
 	if k.Streambuf == 0 {
-		k.Streambuf = 1 * 1024 * 1024
+		k.Streambuf = 2 * 1024 * 1024
 	}
 }
 
