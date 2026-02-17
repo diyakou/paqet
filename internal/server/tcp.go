@@ -16,7 +16,7 @@ func (s *Server) handleTCPProtocol(ctx context.Context, strm tnet.Strm, p *proto
 }
 
 func (s *Server) handleTCP(ctx context.Context, strm tnet.Strm, addr string) error {
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		flog.Errorf("failed to establish TCP connection to %s for stream %d: %v", addr, strm.SID(), err)
@@ -28,23 +28,38 @@ func (s *Server) handleTCP(ctx context.Context, strm tnet.Strm, addr string) err
 	}()
 	flog.Debugf("TCP connection established to %s for stream %d", addr, strm.SID())
 
+	// Use context cancellation to properly tear down both directions
+	// when one side closes. Prevents goroutine leaks.
+	copyCtx, copyCancel := context.WithCancel(ctx)
+	defer copyCancel()
+
 	errChan := make(chan error, 2)
 	go func() {
 		err := buffer.CopyT(conn, strm)
+		copyCancel() // Signal the other direction to stop
 		errChan <- err
 	}()
 	go func() {
 		err := buffer.CopyT(strm, conn)
+		copyCancel() // Signal the other direction to stop
 		errChan <- err
 	}()
 
-	select {
-	case err := <-errChan:
-		if err != nil {
-			flog.Errorf("TCP stream %d to %s failed: %v", strm.SID(), addr, err)
-			return err
+	// Wait for context cancellation (either copy finished or parent cancelled)
+	<-copyCtx.Done()
+
+	// Close connections to unblock any stuck reads
+	conn.Close()
+	strm.Close()
+
+	// Drain error channel
+	for i := 0; i < 2; i++ {
+		if e := <-errChan; e != nil && err == nil {
+			err = e
 		}
-	case <-ctx.Done():
+	}
+	if err != nil {
+		flog.Debugf("TCP stream %d to %s finished with: %v", strm.SID(), addr, err)
 	}
 	return nil
 }

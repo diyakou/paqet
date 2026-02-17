@@ -26,24 +26,27 @@ func (s *Server) handleUDP(ctx context.Context, strm tnet.Strm, addr string) err
 	}()
 	flog.Debugf("UDP connection established to %s for stream %d", addr, strm.SID())
 
+	copyCtx, copyCancel := context.WithCancel(ctx)
+	defer copyCancel()
+
 	errChan := make(chan error, 2)
 	go func() {
 		err := buffer.CopyU(conn, strm)
+		copyCancel()
 		errChan <- err
 	}()
 	go func() {
 		err := buffer.CopyU(strm, conn)
+		copyCancel()
 		errChan <- err
 	}()
 
-	select {
-	case err := <-errChan:
-		if err != nil {
-			flog.Errorf("UDP stream %d to %s failed: %v", strm.SID(), addr, err)
-			return err
-		}
-	case <-ctx.Done():
-		return nil
+	<-copyCtx.Done()
+	conn.Close()
+	strm.Close()
+
+	for i := 0; i < 2; i++ {
+		<-errChan
 	}
 
 	return nil

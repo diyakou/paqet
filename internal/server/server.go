@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"paqet/internal/conf"
@@ -16,9 +17,10 @@ import (
 )
 
 type Server struct {
-	cfg   *conf.Conf
-	pConn *socket.PacketConn
-	wg    sync.WaitGroup
+	cfg      *conf.Conf
+	pConn    *socket.PacketConn
+	wg       sync.WaitGroup
+	connCount atomic.Int64 // Track active connections for monitoring
 }
 
 func New(cfg *conf.Conf) (*Server, error) {
@@ -78,10 +80,13 @@ func (s *Server) listen(ctx context.Context, listener tnet.Listener) {
 			flog.Errorf("failed to accept connection: %v", err)
 			continue
 		}
-		flog.Infof("accepted new connection from %s (local: %s)", conn.RemoteAddr(), conn.LocalAddr())
+		flog.Infof("accepted new connection from %s (local: %s) [active: %d]", conn.RemoteAddr(), conn.LocalAddr(), s.connCount.Add(1))
 
 		s.wg.Go(func() {
-			defer conn.Close()
+			defer func() {
+				conn.Close()
+				flog.Infof("connection from %s closed [active: %d]", conn.RemoteAddr(), s.connCount.Add(-1))
+			}()
 			s.handleConn(ctx, conn)
 		})
 	}

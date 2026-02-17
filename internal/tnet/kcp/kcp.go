@@ -34,15 +34,17 @@ func aplConf(conn *kcp.UDPSession, cfg *conf.KCP) {
 	conn.SetMtu(cfg.MTU)
 	conn.SetWriteDelay(wDelay)
 	conn.SetACKNoDelay(ackNoDelay)
-	conn.SetDSCP(46)
+	// DSCP 0 (default): blends in with normal traffic.
+	// DSCP 46 (EF) is meant for VoIP and attracts ISP/DPI attention.
+	conn.SetDSCP(0)
 }
 
 func smuxConf(cfg *conf.KCP) *smux.Config {
 	var sconf = smux.DefaultConfig()
 	sconf.Version = 2
-	sconf.KeepAliveInterval = 2 * time.Second
-	sconf.KeepAliveTimeout = 8 * time.Second
-	sconf.MaxFrameSize = 65535
+	sconf.KeepAliveInterval = 10 * time.Second  // Was 2s: reduces keepalive overhead by 5x
+	sconf.KeepAliveTimeout = 30 * time.Second   // Was 8s: more tolerant of network latency
+	sconf.MaxFrameSize = 32768                  // Was 65535: reduces memory per-frame, aligns better with KCP MTU
 	sconf.MaxReceiveBuffer = cfg.Smuxbuf
 	sconf.MaxStreamBuffer = cfg.Streambuf
 	return sconf

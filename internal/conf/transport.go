@@ -18,14 +18,17 @@ func (t *Transport) setDefaults(role string) {
 		t.Conn = 1
 	}
 
+	// TCP copy buffer: 32KB provides good throughput for relay workloads.
+	// 8KB (old default) causes excessive read/write syscalls under high load.
 	if t.TCPBuf == 0 {
-		t.TCPBuf = 8 * 1024
+		t.TCPBuf = 32 * 1024
 	}
 	if t.TCPBuf < 4*1024 {
 		t.TCPBuf = 4 * 1024
 	}
+	// UDP copy buffer: 16KB handles most UDP payloads efficiently.
 	if t.UDPBuf == 0 {
-		t.UDPBuf = 4 * 1024
+		t.UDPBuf = 16 * 1024
 	}
 	if t.UDPBuf < 2*1024 {
 		t.UDPBuf = 2 * 1024

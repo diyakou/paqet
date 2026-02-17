@@ -118,7 +118,7 @@ func (h *SendHandle) buildIPv4Header(dstIP net.IP) *layers.IPv4 {
 	*ip = layers.IPv4{
 		Version:  4,
 		IHL:      5,
-		TOS:      184,
+		TOS:      0, // Default TOS: avoids QoS detection by ISPs. TOS 184 is unusual and can trigger DPI.
 		TTL:      64,
 		Flags:    layers.IPv4DontFragment,
 		Protocol: layers.IPProtocolTCP,
@@ -132,7 +132,7 @@ func (h *SendHandle) buildIPv6Header(dstIP net.IP) *layers.IPv6 {
 	ip := h.ipv6Pool.Get().(*layers.IPv6)
 	*ip = layers.IPv6{
 		Version:      6,
-		TrafficClass: 184,
+		TrafficClass: 0, // Default: avoids QoS detection
 		HopLimit:     64,
 		NextHeader:   layers.IPProtocolTCP,
 		SrcIP:        h.srcIPv6,

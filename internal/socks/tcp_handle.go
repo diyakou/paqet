@@ -1,6 +1,7 @@
 package socks
 
 import (
+	"context"
 	"net"
 	"paqet/internal/flog"
 	"paqet/internal/pkg/buffer"
@@ -58,23 +59,27 @@ func (h *Handler) handleTCPConnect(conn *net.TCPConn, r *socks5.Request) error {
 	defer strm.Close()
 	flog.Debugf("SOCKS5 stream %d created for %s -> %s", strm.SID(), conn.RemoteAddr(), r.Address())
 
+	copyCtx, copyCancel := context.WithCancel(h.ctx)
+	defer copyCancel()
+
 	errCh := make(chan error, 2)
 	go func() {
 		err := buffer.CopyT(conn, strm)
+		copyCancel()
 		errCh <- err
 	}()
 	go func() {
 		err := buffer.CopyT(strm, conn)
+		copyCancel()
 		errCh <- err
 	}()
 
-	select {
-	case err := <-errCh:
-		if err != nil {
-			flog.Errorf("SOCKS5 stream %d failed for %s -> %s: %v", strm.SID(), conn.RemoteAddr(), r.Address(), err)
-		}
-	case <-h.ctx.Done():
-		flog.Debugf("SOCKS5 connection %s -> %s closed due to shutdown", conn.RemoteAddr(), r.Address())
+	<-copyCtx.Done()
+	conn.Close()
+	strm.Close()
+
+	for i := 0; i < 2; i++ {
+		<-errCh
 	}
 
 	flog.Debugf("SOCKS5 connection %s -> %s closed", conn.RemoteAddr(), r.Address())

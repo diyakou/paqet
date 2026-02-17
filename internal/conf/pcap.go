@@ -11,11 +11,9 @@ type PCAP struct {
 
 func (p *PCAP) setDefaults(role string) {
 	if p.Sockbuf == 0 {
-		if role == "server" {
-			p.Sockbuf = 8 * 1024 * 1024
-		} else {
-			p.Sockbuf = 4 * 1024 * 1024
-		}
+		// 4MB is sufficient for most workloads.
+		// Under high user count, large buffers per-handle waste RAM.
+		p.Sockbuf = 4 * 1024 * 1024
 	}
 }
 

@@ -26,11 +26,16 @@ func newHandle(cfg *conf.Network) (*pcap.Handle, error) {
 		return nil, fmt.Errorf("failed to set pcap buffer size to %d: %v", cfg.PCAP.Sockbuf, err)
 	}
 
-	if err = inactive.SetSnapLen(65536); err != nil {
+	// SnapLen 4096 is sufficient for tunnel payloads (KCP MTU ~1350 + headers).
+	// 65536 wastes memory copying full jumbo frames we never need.
+	if err = inactive.SetSnapLen(4096); err != nil {
 		return nil, fmt.Errorf("failed to set pcap snap length: %v", err)
 	}
-	if err = inactive.SetPromisc(true); err != nil {
-		return nil, fmt.Errorf("failed to enable promiscuous mode: %v", err)
+	// Promiscuous mode is NOT needed: BPF filter already selects our port.
+	// Disabling it avoids capturing and processing irrelevant traffic,
+	// which is a major CPU saver on busy servers.
+	if err = inactive.SetPromisc(false); err != nil {
+		return nil, fmt.Errorf("failed to disable promiscuous mode: %v", err)
 	}
 	if err = inactive.SetTimeout(pcap.BlockForever); err != nil {
 		return nil, fmt.Errorf("failed to set pcap timeout: %v", err)

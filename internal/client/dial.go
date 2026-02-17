@@ -1,10 +1,13 @@
 package client
 
 import (
+	"fmt"
 	"paqet/internal/flog"
 	"paqet/internal/tnet"
 	"time"
 )
+
+const maxRetries = 3
 
 func (c *Client) newConn() (tnet.Conn, error) {
 	c.mu.Lock()
@@ -27,15 +30,28 @@ func (c *Client) newConn() (tnet.Conn, error) {
 }
 
 func (c *Client) newStrm() (tnet.Strm, error) {
-	conn, err := c.newConn()
-	if err != nil {
-		flog.Debugf("session creation failed, retrying")
-		return c.newStrm()
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 100ms, 200ms, 400ms...
+			backoff := time.Duration(100<<uint(attempt-1)) * time.Millisecond
+			flog.Debugf("stream creation retry %d/%d after %v", attempt+1, maxRetries, backoff)
+			time.Sleep(backoff)
+		}
+
+		conn, err := c.newConn()
+		if err != nil {
+			lastErr = err
+			flog.Debugf("session creation failed (attempt %d/%d): %v", attempt+1, maxRetries, err)
+			continue
+		}
+		strm, err := conn.OpenStrm()
+		if err != nil {
+			lastErr = err
+			flog.Debugf("failed to open stream (attempt %d/%d): %v", attempt+1, maxRetries, err)
+			continue
+		}
+		return strm, nil
 	}
-	strm, err := conn.OpenStrm()
-	if err != nil {
-		flog.Debugf("failed to open stream, retrying: %v", err)
-		return c.newStrm()
-	}
-	return strm, nil
+	return nil, fmt.Errorf("failed to create stream after %d attempts: %w", maxRetries, lastErr)
 }
