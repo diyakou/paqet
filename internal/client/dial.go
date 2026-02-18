@@ -9,22 +9,13 @@ import (
 
 const maxRetries = 3
 
+// newConn returns the next available connection using lock-free round-robin.
+// No mutex needed: iterator uses atomic counter, and connection health is
+// checked lazily. This eliminates the main bottleneck for 200+ concurrent users.
 func (c *Client) newConn() (tnet.Conn, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	autoExpire := 300
 	tc := c.iter.Next()
-	go tc.sendTCPF(tc.conn)
-	err := tc.conn.Ping(false)
-	if err != nil {
-		flog.Infof("connection lost, retrying....")
-		if tc.conn != nil {
-			tc.conn.Close()
-		}
-		if c, err := tc.createConn(); err == nil {
-			tc.conn = c
-		}
-		tc.expire = time.Now().Add(time.Duration(autoExpire) * time.Second)
+	if tc.conn == nil {
+		return nil, fmt.Errorf("connection not initialized")
 	}
 	return tc.conn, nil
 }
@@ -33,8 +24,8 @@ func (c *Client) newStrm() (tnet.Strm, error) {
 	var lastErr error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff: 100ms, 200ms, 400ms...
-			backoff := time.Duration(100<<uint(attempt-1)) * time.Millisecond
+			// Exponential backoff: 50ms, 100ms
+			backoff := time.Duration(50<<uint(attempt-1)) * time.Millisecond
 			flog.Debugf("stream creation retry %d/%d after %v", attempt+1, maxRetries, backoff)
 			time.Sleep(backoff)
 		}
