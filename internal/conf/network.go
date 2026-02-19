@@ -20,7 +20,6 @@ type Network struct {
 	IPv6       Addr           `yaml:"ipv6"`
 	PCAP       PCAP           `yaml:"pcap"`
 	TCP        TCP            `yaml:"tcp"`
-	DPI        DPI            `yaml:"dpi"`
 	Interface  *net.Interface `yaml:"-"`
 	Port       int            `yaml:"-"`
 }
@@ -28,7 +27,6 @@ type Network struct {
 func (n *Network) setDefaults(role string) {
 	n.PCAP.setDefaults(role)
 	n.TCP.setDefaults()
-	n.DPI.setDefaults()
 }
 
 func (n *Network) validate() []error {
@@ -76,7 +74,6 @@ func (n *Network) validate() []error {
 
 	errors = append(errors, n.PCAP.validate()...)
 	errors = append(errors, n.TCP.validate()...)
-	errors = append(errors, n.DPI.validate()...)
 
 	return errors
 }

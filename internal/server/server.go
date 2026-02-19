@@ -55,15 +55,6 @@ func (s *Server) Start() error {
 	defer listener.Close()
 	flog.Infof("Server started - listening for packets on :%d", s.cfg.Listen.Addr.Port)
 
-	// Log DPI evasion status
-	dpi := &s.cfg.Network.DPI
-	if dpi.FakeEnabled {
-		flog.Infof("DPI evasion: fake packets ENABLED (ttl=%d, count=%d, cutoff=%d)", dpi.FakeTTL, dpi.FakeCount, dpi.FakeCutoff)
-	}
-	if dpi.PadEnabled {
-		flog.Infof("DPI evasion: payload padding ENABLED (max=%d bytes)", dpi.PadMax)
-	}
-
 	s.wg.Go(func() {
 		s.listen(ctx, listener)
 	})

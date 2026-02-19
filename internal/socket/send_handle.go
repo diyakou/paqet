@@ -35,7 +35,6 @@ type SendHandle struct {
 	time        uint32
 	tsCounter   uint32
 	tcpF        TCPF
-	dpi         *dpiEvasion // zapret-inspired DPI bypass
 	ethPool     sync.Pool
 	ipv4Pool    sync.Pool
 	ipv6Pool    sync.Pool
@@ -111,10 +110,6 @@ func NewSendHandle(cfg *conf.Network) (*SendHandle, error) {
 		sh.srcIPv6 = cfg.IPv6.Addr.IP
 		sh.srcIPv6RHWA = cfg.IPv6.Router
 	}
-
-	// Initialize DPI evasion (zapret-inspired techniques)
-	sh.dpi = newDPIEvasion(&cfg.DPI)
-
 	return sh, nil
 }
 
@@ -180,17 +175,6 @@ func (h *SendHandle) buildTCPHeader(dstPort uint16, f conf.TCPF) *layers.TCP {
 }
 
 func (h *SendHandle) Write(payload []byte, addr *net.UDPAddr) error {
-	// DPI evasion: send fake decoy packets with low TTL before real data.
-	// Fake packets desynchronize DPI's TCP stream reassembly (zapret technique).
-	if h.dpi.shouldSendFake(addr.IP, uint16(addr.Port)) {
-		h.sendFakePackets(addr)
-	}
-
-	// DPI evasion: add random padding to defeat length-based fingerprinting.
-	if h.dpi.cfg.PadEnabled {
-		payload = WrapPadding(payload, h.dpi.cfg.PadMax)
-	}
-
 	buf := h.bufPool.Get().(gopacket.SerializeBuffer)
 	ethLayer := h.ethPool.Get().(*layers.Ethernet)
 	defer func() {
