@@ -12,6 +12,7 @@ import (
 
 type RecvHandle struct {
 	handle *pcap.Handle
+	dpi    *conf.DPI // DPI evasion config for padding unwrap
 }
 
 func NewRecvHandle(cfg *conf.Network) (*RecvHandle, error) {
@@ -32,7 +33,7 @@ func NewRecvHandle(cfg *conf.Network) (*RecvHandle, error) {
 		return nil, fmt.Errorf("failed to set BPF filter: %w", err)
 	}
 
-	return &RecvHandle{handle: handle}, nil
+	return &RecvHandle{handle: handle, dpi: &cfg.DPI}, nil
 }
 
 // Read performs zero-alloc direct byte-level parsing instead of full gopacket decode.
@@ -110,7 +111,18 @@ func (h *RecvHandle) Read() ([]byte, net.Addr, error) {
 		return nil, nil, nil
 	}
 
-	return data[payloadStart:], addr, nil
+	payload := data[payloadStart:]
+
+	// DPI evasion: unwrap padding if enabled.
+	// Both sides must have matching padding settings.
+	if h.dpi != nil && h.dpi.PadEnabled {
+		payload = UnwrapPadding(payload)
+		if payload == nil {
+			return nil, nil, nil
+		}
+	}
+
+	return payload, addr, nil
 }
 
 func (h *RecvHandle) Close() {

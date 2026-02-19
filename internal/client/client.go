@@ -52,5 +52,15 @@ func (c *Client) Start(ctx context.Context) error {
 		ipv6Addr = c.cfg.Network.IPv6.Addr.IP.String()
 	}
 	flog.Infof("Client started: IPv4:%s IPv6:%s -> %s (%d connections)", ipv4Addr, ipv6Addr, c.cfg.Server.Addr, len(c.iter.Items))
+
+	// Log DPI evasion status
+	dpi := &c.cfg.Network.DPI
+	if dpi.FakeEnabled {
+		flog.Infof("DPI evasion: fake packets ENABLED (ttl=%d, count=%d, cutoff=%d)", dpi.FakeTTL, dpi.FakeCount, dpi.FakeCutoff)
+	}
+	if dpi.PadEnabled {
+		flog.Infof("DPI evasion: payload padding ENABLED (max=%d bytes)", dpi.PadMax)
+	}
+
 	return nil
 }
