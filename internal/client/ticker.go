@@ -9,7 +9,8 @@ import (
 // ticker periodically checks connection health and reconnects dead connections.
 // This replaces the old per-request Ping check in newConn() which was a bottleneck.
 func (c *Client) ticker(ctx context.Context) {
-	timer := time.NewTicker(15 * time.Second)
+	// Reduce control traffic while still detecting dead links in reasonable time.
+	timer := time.NewTicker(30 * time.Second)
 	defer timer.Stop()
 
 	for {

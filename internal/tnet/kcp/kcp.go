@@ -20,7 +20,10 @@ func aplConf(conn *kcp.UDPSession, cfg *conf.KCP) {
 		wDelay, ackNoDelay = true, false
 	case "fast2":
 		noDelay, interval, resend, noCongestion = 1, 20, 2, 1
-		wDelay, ackNoDelay = false, true
+		// Keep fast2 high-throughput while reducing control-plane packet overhead.
+		// - wDelay=true batches writes per KCP interval (fewer small packets)
+		// - ackNoDelay=false avoids immediate ACK bursts
+		wDelay, ackNoDelay = true, false
 	case "fast3":
 		noDelay, interval, resend, noCongestion = 1, 10, 2, 1
 		wDelay, ackNoDelay = false, true
