@@ -60,12 +60,13 @@ jobs:
                   export PATH=$PATH:/usr/local/go/bin
 
             - name: Checkout Code
-              run: |
-                  git config --global --add safe.directory $GITHUB_WORKSPACE
-                  git clone --depth 1 --branch ${GITHUB_REF#refs/heads/} https://github.com/${{ github.repository }} . 2>/dev/null || \
-                  git clone --depth 1 --branch ${GITHUB_REF#refs/tags/} https://github.com/${{ github.repository }} . 2>/dev/null || \
-                  git clone https://github.com/${{ github.repository }} .
-                  git checkout ${{ github.sha }}
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 1
+                  ref: ${{ github.sha }}
+
+            - name: Mark repo as safe
+              run: git config --global --add safe.directory $GITHUB_WORKSPACE
 
             - name: Build Static libpcap
               run: |
