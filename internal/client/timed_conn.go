@@ -38,10 +38,12 @@ func (tc *timedConn) createConn() (tnet.Conn, error) {
 
 	conn, err := kcp.Dial(tc.cfg.Server.Addr, tc.cfg.Transport.KCP, pConn)
 	if err != nil {
+		pConn.Close()
 		return nil, err
 	}
 	err = tc.sendTCPF(conn)
 	if err != nil {
+		conn.Close()
 		return nil, err
 	}
 	return conn, nil

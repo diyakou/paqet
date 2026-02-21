@@ -59,21 +59,31 @@ func (c *PacketConn) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
 		deadline = timer.C
 	}
 
-	select {
-	case <-c.ctx.Done():
-		return 0, nil, c.ctx.Err()
-	case <-deadline:
-		return 0, nil, os.ErrDeadlineExceeded
-	default:
-	}
+	for {
+		select {
+		case <-c.ctx.Done():
+			return 0, nil, c.ctx.Err()
+		case <-deadline:
+			return 0, nil, os.ErrDeadlineExceeded
+		default:
+		}
 
-	payload, addr, err := c.recvHandle.Read()
-	if err != nil {
-		return 0, nil, err
-	}
-	n = copy(data, payload)
+		payload, addr, err := c.recvHandle.Read()
+		if err != nil {
+			return 0, nil, err
+		}
 
-	return n, addr, nil
+		if len(payload) == 0 || addr == nil {
+			continue
+		}
+
+		n = copy(data, payload)
+		if n == 0 {
+			continue
+		}
+
+		return n, addr, nil
+	}
 }
 
 func (c *PacketConn) WriteTo(data []byte, addr net.Addr) (n int, err error) {
