@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const maxHealthCheckFailures = 3
+
 // ticker periodically checks connection health and reconnects dead connections.
 // This replaces the old per-request Ping check in newConn() which was a bottleneck.
 func (c *Client) ticker(ctx context.Context) {
@@ -20,9 +22,16 @@ func (c *Client) ticker(ctx context.Context) {
 				if tc.conn == nil {
 					continue
 				}
-				err := tc.conn.Ping(false)
+				_ = tc.conn.SetDeadline(time.Now().Add(5 * time.Second))
+				err := tc.conn.Ping(true)
+				_ = tc.conn.SetDeadline(time.Time{})
 				if err != nil {
-					flog.Infof("connection %d health check failed, reconnecting: %v", i, err)
+					tc.fails++
+					flog.Warnf("connection %d health check failed (%d/%d): %v", i, tc.fails, maxHealthCheckFailures, err)
+					if tc.fails < maxHealthCheckFailures {
+						continue
+					}
+					flog.Infof("connection %d exceeded health-check failures, reconnecting", i)
 					tc.conn.Close()
 					newConn, err := tc.createConn()
 					if err != nil {
@@ -30,8 +39,11 @@ func (c *Client) ticker(ctx context.Context) {
 						continue
 					}
 					tc.conn = newConn
+					tc.fails = 0
 					flog.Infof("connection %d reconnected successfully", i)
+					continue
 				}
+				tc.fails = 0
 			}
 		case <-ctx.Done():
 			return

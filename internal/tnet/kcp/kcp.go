@@ -45,8 +45,8 @@ func aplConf(conn *kcp.UDPSession, cfg *conf.KCP) {
 func smuxConf(cfg *conf.KCP) *smux.Config {
 	var sconf = smux.DefaultConfig()
 	sconf.Version = 2
-	sconf.KeepAliveInterval = 5 * time.Second   // 5s: fast dead-conn detection without excessive overhead
-	sconf.KeepAliveTimeout = 15 * time.Second   // 15s: detect dead streams quickly to free resources
+	sconf.KeepAliveInterval = 10 * time.Second  // 10s: lower control traffic and fewer false positives
+	sconf.KeepAliveTimeout = 40 * time.Second   // 40s: tolerate transient packet loss without disconnect flaps
 	sconf.MaxFrameSize = 32768                  // 32KB: good balance between memory and throughput
 	sconf.MaxReceiveBuffer = cfg.Smuxbuf
 	sconf.MaxStreamBuffer = cfg.Streambuf
