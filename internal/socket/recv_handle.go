@@ -11,7 +11,9 @@ import (
 )
 
 type RecvHandle struct {
-	handle *pcap.Handle
+	handle  *pcap.Handle
+	ipv4Buf net.IP
+	ipv6Buf net.IP
 }
 
 func NewRecvHandle(cfg *conf.Network) (*RecvHandle, error) {
@@ -32,7 +34,11 @@ func NewRecvHandle(cfg *conf.Network) (*RecvHandle, error) {
 		return nil, fmt.Errorf("failed to set BPF filter: %w", err)
 	}
 
-	return &RecvHandle{handle: handle}, nil
+	return &RecvHandle{
+		handle:  handle,
+		ipv4Buf: make(net.IP, 4),
+		ipv6Buf: make(net.IP, 16),
+	}, nil
 }
 
 // Read performs zero-alloc direct byte-level parsing instead of full gopacket decode.
@@ -72,18 +78,18 @@ func (h *RecvHandle) Read() ([]byte, net.Addr, error) {
 		if ipHeaderLen < 20 || len(data) < offset+ipHeaderLen {
 			return nil, nil, nil
 		}
-		// Source IP: bytes 12-15 of IP header
-		addr.IP = make(net.IP, 4)
-		copy(addr.IP, data[offset+12:offset+16])
+		// Source IP: bytes 12-15 of IP header (reuse pre-allocated buffer)
+		copy(h.ipv4Buf, data[offset+12:offset+16])
+		addr.IP = h.ipv4Buf
 
 	case 0x86DD: // IPv6
 		if len(data) < offset+40 {
 			return nil, nil, nil
 		}
 		ipHeaderLen = 40
-		// Source IP: bytes 8-23 of IPv6 header
-		addr.IP = make(net.IP, 16)
-		copy(addr.IP, data[offset+8:offset+24])
+		// Source IP: bytes 8-23 of IPv6 header (reuse pre-allocated buffer)
+		copy(h.ipv6Buf, data[offset+8:offset+24])
+		addr.IP = h.ipv6Buf
 
 	default:
 		return nil, nil, nil

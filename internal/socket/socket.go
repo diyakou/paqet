@@ -51,11 +51,9 @@ func New(ctx context.Context, cfg *conf.Network) (*PacketConn, error) {
 }
 
 func (c *PacketConn) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
-	var timer *time.Timer
-	var deadline <-chan time.Time
-	if d, ok := c.readDeadline.Load().(time.Time); ok && !d.IsZero() {
-		timer = time.NewTimer(time.Until(d))
-		defer timer.Stop()
+		var deadline <-chan time.Time
+		if d, ok := c.readDeadline.Load().(time.Time); ok && !d.IsZero() {
+			timer := time.NewTimer(time.Until(d))
 		deadline = timer.C
 	}
 
@@ -87,11 +85,9 @@ func (c *PacketConn) ReadFrom(data []byte) (n int, addr net.Addr, err error) {
 }
 
 func (c *PacketConn) WriteTo(data []byte, addr net.Addr) (n int, err error) {
-	var timer *time.Timer
-	var deadline <-chan time.Time
-	if d, ok := c.writeDeadline.Load().(time.Time); ok && !d.IsZero() {
-		timer = time.NewTimer(time.Until(d))
-		defer timer.Stop()
+		var deadline <-chan time.Time
+		if d, ok := c.writeDeadline.Load().(time.Time); ok && !d.IsZero() {
+			timer := time.NewTimer(time.Until(d))
 		deadline = timer.C
 	}
 
