@@ -11,9 +11,14 @@ type PCAP struct {
 
 func (p *PCAP) setDefaults(role string) {
 	if p.Sockbuf == 0 {
-		// 8MB for high user count (200+). Prevents packet drops under burst.
-		// PCAP ring buffer is shared, so larger is better for throughput.
-		p.Sockbuf = 8 * 1024 * 1024
+		// Role-aware defaults:
+		// - server: larger ring for bursty multi-user traffic
+		// - client: smaller ring to reduce memory footprint
+		if role == "server" {
+			p.Sockbuf = 8 * 1024 * 1024
+		} else {
+			p.Sockbuf = 4 * 1024 * 1024
+		}
 	}
 }
 
