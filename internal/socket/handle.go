@@ -26,9 +26,9 @@ func newHandle(cfg *conf.Network) (*pcap.Handle, error) {
 		return nil, fmt.Errorf("failed to set pcap buffer size to %d: %v", cfg.PCAP.Sockbuf, err)
 	}
 
-	// SnapLen 2048 is optimal: KCP MTU ~1350 + TCP/IP/Ethernet headers (~300 bytes) = ~1650 bytes.
-	// 2048 aligns with page boundaries and avoids excess memory copies on high-load packet bursts.
-	if err = inactive.SetSnapLen(2048); err != nil {
+	// SnapLen 4096 is sufficient for tunnel payloads (KCP MTU ~1350 + headers).
+	// 65536 wastes memory copying full jumbo frames we never need.
+	if err = inactive.SetSnapLen(4096); err != nil {
 		return nil, fmt.Errorf("failed to set pcap snap length: %v", err)
 	}
 	// Promiscuous mode is NOT needed: BPF filter already selects our port.
