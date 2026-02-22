@@ -1,7 +1,9 @@
 package protocol
 
 import (
+	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"fmt"
 	"io"
 	"paqet/internal/conf"
@@ -16,6 +18,8 @@ const (
 	PTCPF PType = 0x03
 	PTCP  PType = 0x04
 	PUDP  PType = 0x05
+
+	legacyGobFirstByte = 0x2f
 )
 
 type Proto struct {
@@ -81,7 +85,19 @@ func (p *Proto) Read(r io.Reader) error {
 	case PPING, PPONG:
 		// No additional data
 	default:
+		if p.Type == legacyGobFirstByte {
+			return p.readLegacyGob(r, typeBuf[0])
+		}
 		return fmt.Errorf("unknown protocol type: %d", p.Type)
+	}
+	return nil
+}
+
+func (p *Proto) readLegacyGob(r io.Reader, firstByte byte) error {
+	mr := io.MultiReader(bytes.NewReader([]byte{firstByte}), r)
+	dec := gob.NewDecoder(mr)
+	if err := dec.Decode(p); err != nil {
+		return err
 	}
 	return nil
 }
