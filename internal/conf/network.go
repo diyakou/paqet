@@ -25,6 +25,12 @@ type Network struct {
 }
 
 func (n *Network) setDefaults(role string) {
+	// Backward/alternate YAML layout support:
+	// Allow configuring PCAP under network.tcp.pcap.sockbuf.
+	// If network.pcap.sockbuf is also set, it takes precedence.
+	if n.PCAP.Sockbuf == 0 && n.TCP.PCAP.Sockbuf != 0 {
+		n.PCAP.Sockbuf = n.TCP.PCAP.Sockbuf
+	}
 	n.PCAP.setDefaults(role)
 	n.TCP.setDefaults()
 }
@@ -70,6 +76,10 @@ func (n *Network) validate() []error {
 	}
 	if n.IPv6.Addr != nil {
 		n.Port = n.IPv6.Addr.Port
+	}
+
+	if n.PCAP.Sockbuf != 0 && n.TCP.PCAP.Sockbuf != 0 && n.PCAP.Sockbuf != n.TCP.PCAP.Sockbuf {
+		errors = append(errors, fmt.Errorf("pcap.sockbuf configured in both network.pcap (%d) and network.tcp.pcap (%d); use only one", n.PCAP.Sockbuf, n.TCP.PCAP.Sockbuf))
 	}
 
 	errors = append(errors, n.PCAP.validate()...)

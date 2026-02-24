@@ -7,6 +7,7 @@ import (
 type TCP struct {
 	LF_ []string `yaml:"local_flag"`
 	RF_ []string `yaml:"remote_flag"`
+	PCAP PCAP    `yaml:"pcap"`
 	LF  []TCPF   `yaml:"-"`
 	RF  []TCPF   `yaml:"-"`
 }

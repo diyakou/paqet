@@ -2,6 +2,13 @@
 # Role must be explicitly set
 role: "client"
 
+# License (required)
+license:
+  key: "KYPAQET-XXXX-XXXX-XXXX-XXXX"  # CHANGE ME
+  url: "http://paqet.morvism.ir:8080"
+  # server_id: ""        # Optional override; by default it is derived from machine-id/hostname
+  # timeout_sec: 6        # Optional
+
 # Logging configuration
 log:
   level: "info"  # none, debug, info, warn, error, fatal
@@ -95,6 +102,43 @@ transport:
     # Buffer settings (optional)
     # smuxbuf: 4194304       # 4MB SMUX buffer
     # streambuf: 2097152     # 2MB stream buffer
+
+  # -----------------------------------------------------------------------------
+  # Manual preset (High buffers / 16 connections)
+  # -----------------------------------------------------------------------------
+  # If you need an explicit "manual" tuning profile, you can use the following.
+  # NOTE: PCAP sockbuf can be configured either here (preferred):
+  #   network.pcap.sockbuf
+  # Or (also supported):
+  #   network.tcp.pcap.sockbuf
+  #
+  # network:
+  #   tcp:
+  #     pcap:
+  #       sockbuf: 33554432
+  #   pcap:
+  #     sockbuf: 33554432
+  #
+  # transport:
+  #   protocol: "kcp"
+  #   conn: 16
+  #   tcpbuf: 131072
+  #   udpbuf: 131072
+  #   kcp:
+  #     mode: "manual"
+  #     nodelay: 1
+  #     interval: 10
+  #     resend: 1
+  #     nocongestion: 1
+  #     wdelay: false
+  #     acknodelay: false
+  #     mtu: 1350
+  #     sndwnd: 1024
+  #     rcvwnd: 1024
+  #     smuxbuf: 16777216
+  #     streambuf: 8388608
+  #     block: "aes-128-gcm"
+  #     key: "your-secret-key-here"
 
 # Optional Forward Error Correction (FEC) - currently disabled
 # Use these only if you need FEC for very lossy networks:

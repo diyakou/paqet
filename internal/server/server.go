@@ -55,9 +55,11 @@ func (s *Server) Start() error {
 	defer listener.Close()
 	flog.Infof("Server started - listening for packets on :%d", s.cfg.Listen.Addr.Port)
 
-	s.wg.Go(func() {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
 		s.listen(ctx, listener)
-	})
+	}()
 
 	s.wg.Wait()
 	flog.Infof("Server shutdown completed")
@@ -82,12 +84,14 @@ func (s *Server) listen(ctx context.Context, listener tnet.Listener) {
 		}
 		flog.Infof("accepted new connection from %s (local: %s) [active: %d]", conn.RemoteAddr(), conn.LocalAddr(), s.connCount.Add(1))
 
-		s.wg.Go(func() {
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
 			defer func() {
 				conn.Close()
 				flog.Infof("connection from %s closed [active: %d]", conn.RemoteAddr(), s.connCount.Add(-1))
 			}()
 			s.handleConn(ctx, conn)
-		})
+		}()
 	}
 }
