@@ -169,10 +169,7 @@ jobs:
 
                   chmod +x paqet_linux_${{ matrix.filename }}
                   tar -czvf dist/paqet-linux-${{ matrix.filename }}-${{ steps.ref_id.outputs.ref }}.tar.gz \
-                    paqet_linux_${{ matrix.filename }} \
-                    README.md \
-                    example/client.yaml.example \
-                    example/server.yaml.example
+                    paqet_linux_${{ matrix.filename }}
 
             - name: Upload Artifact
               uses: actions/upload-artifact@v4
@@ -237,10 +234,7 @@ jobs:
                     -o paqet_windows_${{ matrix.goarch }}.exe ./cmd/main.go
 
                   7z a -tzip dist/paqet-windows-${{ matrix.goarch }}-${{ steps.ref_id.outputs.ref }}.zip \
-                    paqet_windows_${{ matrix.goarch }}.exe \
-                    README.md \
-                    example/client.yaml.example \
-                    example/server.yaml.example
+                    paqet_windows_${{ matrix.goarch }}.exe
 
             - name: Upload Artifact
               uses: actions/upload-artifact@v6
@@ -297,10 +291,7 @@ jobs:
 
                   chmod +x paqet_darwin_${{ matrix.goarch }}
                   tar -czvf dist/paqet-darwin-${{ matrix.goarch }}-${{ steps.ref_id.outputs.ref }}.tar.gz \
-                    paqet_darwin_${{ matrix.goarch }} \
-                    README.md \
-                    example/client.yaml.example \
-                    example/server.yaml.example
+                    paqet_darwin_${{ matrix.goarch }}
 
             - name: Upload Artifact
               uses: actions/upload-artifact@v6

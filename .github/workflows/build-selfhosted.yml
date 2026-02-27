@@ -86,10 +86,7 @@ jobs:
 
                   chmod +x paqet_linux_${{ matrix.filename }}
                   tar -czvf dist/paqet-linux-${{ matrix.filename }}-${{ steps.ref_id.outputs.ref }}.tar.gz \
-                    paqet_linux_${{ matrix.filename }} \
-                    README.md \
-                    example/client.yaml.example \
-                    example/server.yaml.example
+                    paqet_linux_${{ matrix.filename }}
 
             - name: Upload Artifact
               uses: actions/upload-artifact@v4

@@ -4,6 +4,7 @@ import (
 	"log"
 	"paqet/internal/conf"
 	"paqet/internal/flog"
+	"paqet/internal/licensing"
 	"paqet/internal/pkg/buffer"
 
 	"github.com/spf13/cobra"
@@ -25,6 +26,9 @@ var Cmd = &cobra.Command{
 			log.Fatalf("Failed to load configuration: %v", err)
 		}
 		initialize(cfg)
+		if err := licensing.Enforce(cfg); err != nil {
+			flog.Fatalf("License check failed: %v", err)
+		}
 
 		switch cfg.Role {
 		case "client":

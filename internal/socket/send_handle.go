@@ -113,13 +113,13 @@ func NewSendHandle(cfg *conf.Network) (*SendHandle, error) {
 	return sh, nil
 }
 
-func (h *SendHandle) buildIPv4Header(dstIP net.IP) *layers.IPv4 {
+func (h *SendHandle) buildIPv4Header(dstIP net.IP, ttl uint8) *layers.IPv4 {
 	ip := h.ipv4Pool.Get().(*layers.IPv4)
 	*ip = layers.IPv4{
 		Version:  4,
 		IHL:      5,
 		TOS:      0, // Default TOS: avoids QoS detection by ISPs. TOS 184 is unusual and can trigger DPI.
-		TTL:      64,
+		TTL:      ttl,
 		Flags:    layers.IPv4DontFragment,
 		Protocol: layers.IPProtocolTCP,
 		SrcIP:    h.srcIPv4,
@@ -128,12 +128,12 @@ func (h *SendHandle) buildIPv4Header(dstIP net.IP) *layers.IPv4 {
 	return ip
 }
 
-func (h *SendHandle) buildIPv6Header(dstIP net.IP) *layers.IPv6 {
+func (h *SendHandle) buildIPv6Header(dstIP net.IP, hopLimit uint8) *layers.IPv6 {
 	ip := h.ipv6Pool.Get().(*layers.IPv6)
 	*ip = layers.IPv6{
 		Version:      6,
 		TrafficClass: 0, // Default: avoids QoS detection
-		HopLimit:     64,
+		HopLimit:     hopLimit,
 		NextHeader:   layers.IPProtocolTCP,
 		SrcIP:        h.srcIPv6,
 		DstIP:        dstIP,
@@ -143,14 +143,23 @@ func (h *SendHandle) buildIPv6Header(dstIP net.IP) *layers.IPv6 {
 
 func (h *SendHandle) buildTCPHeader(dstPort uint16, f conf.TCPF) *layers.TCP {
 	tcp := h.tcpPool.Get().(*layers.TCP)
+	
+	// TCP Window Size Jitter
+	// DPI systems often fingerprint tools that use a static window size (like 65535).
+	// We introduce a slight jitter to the window size to make it look like a real OS TCP stack
+	// which dynamically adjusts its window size.
+	// Base window size of 64000 + random jitter up to 1535
+	counter := atomic.AddUint32(&h.tsCounter, 1)
+	jitter := uint16(counter % 1535)
+	windowSize := uint16(64000) + jitter
+
 	*tcp = layers.TCP{
 		SrcPort: layers.TCPPort(h.srcPort),
 		DstPort: layers.TCPPort(dstPort),
 		FIN:     f.FIN, SYN: f.SYN, RST: f.RST, PSH: f.PSH, ACK: f.ACK, URG: f.URG, ECE: f.ECE, CWR: f.CWR, NS: f.NS,
-		Window: 65535,
+		Window: windowSize,
 	}
 
-	counter := atomic.AddUint32(&h.tsCounter, 1)
 	tsVal := h.time + (counter >> 3)
 	if f.SYN {
 		binary.BigEndian.PutUint32(h.synOptions[2].OptionData[0:4], tsVal)
@@ -192,14 +201,14 @@ func (h *SendHandle) Write(payload []byte, addr *net.UDPAddr) error {
 
 	var ipLayer gopacket.SerializableLayer
 	if dstIP.To4() != nil {
-		ip := h.buildIPv4Header(dstIP)
+		ip := h.buildIPv4Header(dstIP, 64)
 		defer h.ipv4Pool.Put(ip)
 		ipLayer = ip
 		tcpLayer.SetNetworkLayerForChecksum(ip)
 		ethLayer.DstMAC = h.srcIPv4RHWA
 		ethLayer.EthernetType = layers.EthernetTypeIPv4
 	} else {
-		ip := h.buildIPv6Header(dstIP)
+		ip := h.buildIPv6Header(dstIP, 64)
 		defer h.ipv6Pool.Put(ip)
 		ipLayer = ip
 		tcpLayer.SetNetworkLayerForChecksum(ip)
@@ -207,11 +216,68 @@ func (h *SendHandle) Write(payload []byte, addr *net.UDPAddr) error {
 		ethLayer.EthernetType = layers.EthernetTypeIPv6
 	}
 
+	// Random Packet Padding (Traffic Shaping Evasion)
+	// DPIs often use packet length to fingerprint protocols (e.g., KCP has specific header sizes).
+	// We append a small amount of random garbage data to the end of the payload.
+	// The receiving end (recv_handle.go) will ignore this extra data because KCP/Smux
+	// have their own internal length fields and will only read what they expect.
+	// We keep the padding small (0-31 bytes) to minimize bandwidth overhead.
+	paddingLen := int(atomic.LoadUint32(&h.tsCounter) % 32)
+	if paddingLen > 0 {
+		paddedPayload := make([]byte, len(payload)+paddingLen)
+		copy(paddedPayload, payload)
+		// The rest of paddedPayload is naturally zero-initialized, which is fine for padding,
+		// but we can make it slightly more random by copying some bytes from the payload itself
+		// or just leaving it as zeros. For speed, we leave it as zeros.
+		payload = paddedPayload
+	}
+
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 	if err := gopacket.SerializeLayers(buf, opts, ethLayer, ipLayer, tcpLayer, gopacket.Payload(payload)); err != nil {
 		return err
 	}
+
+	// Geneva-inspired Evasion: TTL Desync
+	// Occasionally send a fake RST packet with a low TTL.
+	// The DPI will see the RST and tear down its state for this connection,
+	// but the packet will be dropped by intermediate routers before reaching the actual server.
+	// We do this roughly 1 out of every 100 packets to keep overhead low.
+	if atomic.AddUint32(&h.tsCounter, 1)%100 == 0 {
+		h.sendEvasionPacket(dstIP, dstPort, ethLayer)
+	}
+
 	return h.handle.WritePacketData(buf.Bytes())
+}
+
+func (h *SendHandle) sendEvasionPacket(dstIP net.IP, dstPort uint16, ethLayer *layers.Ethernet) {
+	evasionBuf := h.bufPool.Get().(gopacket.SerializeBuffer)
+	defer func() {
+		evasionBuf.Clear()
+		h.bufPool.Put(evasionBuf)
+	}()
+
+	// Create a TCP RST packet
+	evasionTCP := h.buildTCPHeader(dstPort, conf.TCPF{RST: true})
+	defer h.tcpPool.Put(evasionTCP)
+
+	var evasionIP gopacket.SerializableLayer
+	if dstIP.To4() != nil {
+		// Low TTL (e.g., 8) ensures it dies before reaching the destination
+		ip := h.buildIPv4Header(dstIP, 8)
+		defer h.ipv4Pool.Put(ip)
+		evasionIP = ip
+		evasionTCP.SetNetworkLayerForChecksum(ip)
+	} else {
+		ip := h.buildIPv6Header(dstIP, 8)
+		defer h.ipv6Pool.Put(ip)
+		evasionIP = ip
+		evasionTCP.SetNetworkLayerForChecksum(ip)
+	}
+
+	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
+	if err := gopacket.SerializeLayers(evasionBuf, opts, ethLayer, evasionIP, evasionTCP); err == nil {
+		_ = h.handle.WritePacketData(evasionBuf.Bytes())
+	}
 }
 
 func (h *SendHandle) getClientTCPF(dstIP net.IP, dstPort uint16) conf.TCPF {

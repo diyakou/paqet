@@ -12,6 +12,7 @@ import (
 
 type Conf struct {
 	Role      string    `yaml:"role"`
+	License   License   `yaml:"license"`
 	Log       Log       `yaml:"log"`
 	Listen    Server    `yaml:"listen"`
 	SOCKS5    []SOCKS5  `yaml:"socks5"`
@@ -47,6 +48,7 @@ func LoadFromFile(path string) (*Conf, error) {
 }
 
 func (c *Conf) setDefaults() {
+	c.License.setDefaults(c.Role)
 	c.Log.setDefaults()
 	c.Listen.setDefaults()
 	for i := range c.SOCKS5 {
@@ -62,6 +64,8 @@ func (c *Conf) setDefaults() {
 
 func (c *Conf) validate() error {
 	var allErrors []error
+
+	allErrors = append(allErrors, c.License.validate()...)
 	allErrors = append(allErrors, c.Log.validate()...)
 	if c.Role == "client" && len(c.SOCKS5) == 0 && len(c.Forward) == 0 {
 		flog.Warnf("warning: client mode enabled but no SOCKS5 or forward configurations found")

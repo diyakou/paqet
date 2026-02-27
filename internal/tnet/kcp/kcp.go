@@ -27,6 +27,13 @@ func aplConf(conn *kcp.UDPSession, cfg *conf.KCP) {
 	case "fast3":
 		noDelay, interval, resend, noCongestion = 1, 10, 2, 1
 		wDelay, ackNoDelay = false, true
+	case "1to1":
+		// Optimized for 1:1 bandwidth ratio and high connection count
+		// - resend=0: Disable fast resend (only resend on actual timeout)
+		// - noCongestion=0: Enable congestion control (TCP-like behavior)
+		// - wDelay=true: Batch writes
+		noDelay, interval, resend, noCongestion = 0, 40, 0, 0
+		wDelay, ackNoDelay = true, false
 	case "manual":
 		noDelay, interval, resend, noCongestion = cfg.NoDelay, cfg.Interval, cfg.Resend, cfg.NoCongestion
 		wDelay, ackNoDelay = cfg.WDelay, cfg.AckNoDelay
@@ -48,7 +55,20 @@ func smuxConf(cfg *conf.KCP) *smux.Config {
 	sconf.KeepAliveInterval = 10 * time.Second  // 10s: lower control traffic and fewer false positives
 	sconf.KeepAliveTimeout = 40 * time.Second   // 40s: tolerate transient packet loss without disconnect flaps
 	sconf.MaxFrameSize = 32768                  // 32KB: good balance between memory and throughput
-	sconf.MaxReceiveBuffer = cfg.Smuxbuf
-	sconf.MaxStreamBuffer = cfg.Streambuf
+	
+	// For high connection counts, we need to be careful with memory.
+	// If the user hasn't explicitly set large buffers, keep them reasonable.
+	if cfg.Smuxbuf == 0 {
+		sconf.MaxReceiveBuffer = 1048576 // 1MB default (down from 4MB)
+	} else {
+		sconf.MaxReceiveBuffer = cfg.Smuxbuf
+	}
+	
+	if cfg.Streambuf == 0 {
+		sconf.MaxStreamBuffer = 262144 // 256KB default
+	} else {
+		sconf.MaxStreamBuffer = cfg.Streambuf
+	}
+	
 	return sconf
 }

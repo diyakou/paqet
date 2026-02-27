@@ -104,13 +104,37 @@ func (h *RecvHandle) Read() ([]byte, net.Addr, error) {
 		return nil, nil, nil
 	}
 
-	payloadStart := tcpStart + tcpHeaderLen
-	if payloadStart >= len(data) {
-		// No payload (e.g. ACK-only packet)
+	// Anti-Active Probing (Drop-by-Default)
+	// Check TCP flags (byte 13 of TCP header)
+	// We only want to process packets that have PSH flag set (data packets)
+	// or specific flags used by our protocol.
+	// If a scanner sends SYN, FIN, or pure ACK probes, we silently drop them here
+	// before they reach the KCP/Smux layer, preventing any response.
+	tcpFlags := data[tcpStart+13]
+	isPSH := (tcpFlags & 0x08) != 0
+	
+	// If it's not a PSH packet, it's likely a probe or an empty ACK.
+	// We drop it at layer 3 to remain completely stealthy.
+	if !isPSH {
 		return nil, nil, nil
 	}
 
-	return data[payloadStart:], addr, nil
+	payloadStart := tcpStart + tcpHeaderLen
+	if payloadStart >= len(data) {
+		// No payload
+		return nil, nil, nil
+	}
+
+	// Additional Anti-Probing: Payload Entropy/Size Check
+	// Active probes often send very small payloads or specific HTTP/TLS signatures.
+	// KCP packets have a minimum header size (24 bytes).
+	// If the payload is smaller than a valid KCP packet, drop it silently.
+	payload := data[payloadStart:]
+	if len(payload) < 24 {
+		return nil, nil, nil
+	}
+
+	return payload, addr, nil
 }
 
 func (h *RecvHandle) Close() {
