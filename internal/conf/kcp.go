@@ -81,7 +81,7 @@ func (k *KCP) setDefaults(role string) {
 func (k *KCP) validate() []error {
 	var errors []error
 
-	validModes := []string{"normal", "fast", "fast2", "fast3", "manual"}
+	validModes := []string{"normal", "fast", "fast2", "fast3", "stream", "1to1", "manual"}
 	if !slices.Contains(validModes, k.Mode) {
 		errors = append(errors, fmt.Errorf("KCP mode must be one of: %v", validModes))
 	}
