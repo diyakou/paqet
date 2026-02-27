@@ -241,8 +241,8 @@ func (h *SendHandle) Write(payload []byte, addr *net.UDPAddr) error {
 	// Occasionally send a fake RST packet with a low TTL.
 	// The DPI will see the RST and tear down its state for this connection,
 	// but the packet will be dropped by intermediate routers before reaching the actual server.
-	// We do this roughly 1 out of every 100 packets to keep overhead low.
-	if atomic.AddUint32(&h.tsCounter, 1)%100 == 0 {
+	// We do this roughly 1 out of every 1000 packets to keep overhead low and avoid triggering rate limits.
+	if atomic.AddUint32(&h.tsCounter, 1)%1000 == 0 {
 		h.sendEvasionPacket(dstIP, dstPort, ethLayer)
 	}
 
