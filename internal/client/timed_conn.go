@@ -16,7 +16,6 @@ type timedConn struct {
 	conn   tnet.Conn
 	expire time.Time
 	ctx    context.Context
-	fails  int
 }
 
 func newTimedConn(ctx context.Context, cfg *conf.Conf) (*timedConn, error) {
