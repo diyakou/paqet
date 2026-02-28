@@ -2,13 +2,6 @@
 # Role must be explicitly set
 role: "server"
 
-# License (required)
-license:
-  key: "KYPAQET-XXXX-XXXX-XXXX-XXXX"  # CHANGE ME
-  url: "http://paqet-server.morvism.ir:8080"
-  # server_id: ""        # Optional override; by default it is derived from machine-id/hostname
-  # timeout_sec: 6        # Optional
-
 # Logging configuration
 log:
   level: "info"  # none, debug, info, warn, error, fatal
